@@ -1,0 +1,324 @@
+﻿@{
+    ViewData["Title"] = "Database AI Chatbot";
+    Layout = "_Layout";
+}
+
+
+
+
+<div class="chat-shell">
+
+    <!-- Header -->
+    <header class="d-flex justify-content-between align-items-center gap-3 mb-5">
+        <div class="d-flex align-items-center gap-3">
+            <div class="brand-icon">
+                <i class="bi bi-database-fill-gear"></i>
+            </div>
+            <div>
+                <div class="brand-title fs-5">DBChatbot</div>
+                <div class="muted-text small">AI Database Intelligence</div>
+            </div>
+       </div>
+    </header>
+
+ 
+
+    <!-- Main card -->
+    <div class="card main-card bg-white mb-4">
+        <div class="card-section">
+
+            <div class="d-flex align-items-center gap-3 mb-4">
+                <div class="section-icon">
+                    <i class="bi bi-hdd-network"></i>
+                </div>
+                <div>
+                    <h2 class="h6 fw-bold mb-1">Database connection</h2>
+                    <div class="small muted-text">
+                        Choose which database you want to explore.
+                    </div>
+                </div>
+            </div>
+
+            <label for="databaseName" class="form-label">
+                SQL Server database
+            </label>
+
+            <select id="databaseName" class="form-select mb-2">
+                <option value="">Loading databases...</option>
+            </select>
+
+            <div class="d-flex flex-wrap justify-content-between gap-2 mb-4">
+                <span class="small muted-text">
+                    <i class="bi bi-shield-check me-1"></i>
+                    Approved databases only
+                </span>
+                <span id="databaseCount" class="small muted-text"></span>
+            </div>
+
+            <hr class="border-light-subtle my-4">
+
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-chat-square-text fs-5"
+                   style="color:var(--ai-primary)"></i>
+                <label for="question" class="form-label mb-0">
+                    What would you like to know?
+                </label>
+            </div>
+
+            <textarea id="question"
+                      class="form-control mb-3"
+                      rows="4"
+                      placeholder="Example: Which views and stored procedures reference ApplicationMain?"></textarea>
+
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <span class="small muted-text">
+                    <i class="bi bi-keyboard me-1"></i>
+                    Enter to ask · Shift + Enter for a new line
+                </span>
+
+                <button id="sendButton" type="button" class="btn btn-ai">
+                    <span id="sendButtonText">Ask AI</span>
+                    <i id="sendButtonIcon" class="bi bi-arrow-up-right ms-2"></i>
+                </button>
+            </div>
+
+            <div id="status" class="status-message mt-3 muted-text"
+                 role="status" aria-live="polite"></div>
+        </div>
+    </div>
+
+    <section id="answerSection" class="card main-card bg-white mb-4 d-none">
+        <div class="card-section">
+            <div class="d-flex align-items-center justify-content-between gap-3 mb-4">
+                <div>
+                    <h2 class="h6 fw-bold mb-1">
+                        <i class="bi bi-stars me-2"></i>AI response
+                    </h2>
+                    <div id="answerMeta" class="small muted-text"></div>
+                </div>
+
+                <button type="button" id="copyAnswer"
+                        class="btn btn-sm btn-outline-secondary rounded-3">
+                    <i class="bi bi-clipboard me-1"></i>Copy
+                </button>
+            </div>
+
+            <div id="answer" class="answer-panel answer-content"></div>
+
+            <details id="evidenceDetails" class="mt-4">
+                <summary class="clickable-summary fw-semibold small">
+                    <i class="bi bi-braces me-2"></i>View database evidence
+                </summary>
+
+                <pre id="evidence" class="evidence mt-3 mb-0"></pre>
+            </details>
+        </div>
+    </section>
+
+
+    <footer class="text-center mt-5 footer-note">
+        <div class="mb-2">
+            <span class="status-dot"></span>
+            <span id="connectionText">Checking API availability</span>
+        </div>
+       Developed By Mayur Mewada
+    </footer>
+</div>
+
+@section Scripts {
+    <script>
+       
+        const databaseSelect = document.getElementById("databaseName");
+        const databaseCount = document.getElementById("databaseCount");
+        const questionInput = document.getElementById("question");
+        const sendButton = document.getElementById("sendButton");
+        const sendButtonText = document.getElementById("sendButtonText");
+        const sendButtonIcon = document.getElementById("sendButtonIcon");
+        const statusElement = document.getElementById("status");
+        const answerSection = document.getElementById("answerSection");
+        const answerElement = document.getElementById("answer");
+        const answerMeta = document.getElementById("answerMeta");
+        const evidenceElement = document.getElementById("evidence");
+        const evidenceDetails = document.getElementById("evidenceDetails");
+        const connectionText = document.getElementById("connectionText");
+
+        function setStatus(message, type = "") {
+            statusElement.textContent = message;
+            statusElement.className =
+                "status-message mt-3 " +
+                (type === "error" ? "text-danger" :
+                    type === "success" ? "text-success" : "muted-text");
+        }
+
+        async function loadDatabases() {
+            try {
+                
+                const response = await fetch("/api/databases");
+
+                if (!response.ok) {
+                    throw new Error("The database API returned an error.");
+                }
+
+                const result = await response.json();
+                const databases = result.databases ?? [];
+
+                databaseSelect.replaceChildren();
+
+                for (const database of databases) {
+                    const name = database.databaseName;
+                    if (!name) continue;
+
+                    const option = document.createElement("option");
+                    option.value = name;
+                    option.textContent = name;
+                    databaseSelect.appendChild(option);
+                }
+
+                databaseCount.textContent =
+                    `${databaseSelect.options.length} available`;
+
+                if (databaseSelect.options.length === 0) {
+                    setStatus("No databases were returned by the API.", "error");
+                    connectionText.textContent = "API reachable; no databases found";
+                    return;
+                }
+
+                connectionText.textContent = "API connected";
+                setStatus("Select a database and ask your first question.", "success");
+            } catch (error) {
+                databaseSelect.replaceChildren();
+
+                const option = document.createElement("option");
+                option.value = "";
+                option.textContent = "Unable to load databases";
+                databaseSelect.appendChild(option);
+
+                setStatus("Database loading failed: " + error.message, "error");
+                connectionText.textContent = "API connection failed";
+            }
+        }
+
+
+        async function askQuestion() {
+            const databaseName = databaseSelect.value;
+            const question = questionInput.value.trim();
+
+            if (!databaseName) {
+                setStatus("Please select a database first.", "error");
+                return;
+            }
+
+            if (!question) {
+                setStatus("Please enter a question.", "error");
+                questionInput.focus();
+                return;
+            }
+
+            sendButton.disabled = true;
+            sendButtonText.textContent = "Thinking...";
+            sendButtonIcon.className =
+                "spinner-border spinner-border-sm ms-2";
+            setStatus("Searching SQL metadata and generating your answer...");
+            answerSection.classList.add("d-none");
+
+            try {
+                const response = await fetch(
+                    "/api/ai/ask-database-question",
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            databaseName,
+                            question
+                        })
+                    }
+                );
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        result.sqlError ??
+                        result.message ??
+                        "The request failed with HTTP " + response.status
+                    );
+                }
+
+                answerElement.textContent =
+                    result.answer ?? "No answer was returned.";
+
+                answerMeta.textContent =
+                    `${result.databaseName ?? databaseName} · ` +
+                    `${result.relationshipCount ?? result.candidateCount ?? 0} ` +
+                    "matching records";
+
+                evidenceElement.textContent = JSON.stringify(
+                    result.relationships ??
+                    result.candidates ??
+                    result.evidence ??
+                    [],
+                    null,
+                    2
+                );
+
+                evidenceDetails.open = false;
+                answerSection.classList.remove("d-none");
+                setStatus("Answer generated successfully.", "success");
+
+                answerSection.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start"
+                });
+            } catch (error) {
+                setStatus("Request failed: " + error.message, "error");
+            } finally {
+                sendButton.disabled = false;
+                sendButtonText.textContent = "Ask AI";
+                sendButtonIcon.className = "bi bi-arrow-up-right ms-2";
+            }
+        }
+
+        sendButton.addEventListener("click", askQuestion);
+
+        questionInput.addEventListener("keydown", event => {
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                askQuestion();
+            }
+        });
+
+        document.querySelectorAll("[data-question]").forEach(button => {
+            button.addEventListener("click", () => {
+                questionInput.value = button.dataset.question;
+                questionInput.focus();
+                questionInput.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center"
+                });
+            });
+        });
+
+       
+
+        sendButton?.addEventListener("click", askQuestion);
+
+        questionInput?.addEventListener("keydown", event => {
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                askQuestion();
+            }
+        });
+
+        document.querySelectorAll("[data-question]").forEach(button => {
+            button.addEventListener("click", () => {
+                questionInput.value = button.dataset.question;
+                questionInput.focus();
+            });
+        });
+
+        
+        loadDatabases();
+    </script>
+}
